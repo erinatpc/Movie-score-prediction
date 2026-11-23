@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Movie Score</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">★</span>
+      <div>
+        <h1>Movie Score</h1>
+        <p class="sub">Estima el score de una película antes de producirla</p>
+      </div>
+    </div>
+    <div class="status" id="status" role="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Conectando…</span>
+      <button class="link" id="settingsBtn" type="button">Configurar API</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="predict" aria-selected="true">Predicción</button>
+      <button role="tab" data-tab="history" aria-selected="false">Historial</button>
+      <button role="tab" data-tab="metrics" aria-selected="false">Métricas</button>
+      <button role="tab" data-tab="train" aria-selected="false">Datos y reentrenamiento</button>
+    </nav>
+  </div>
+</header>
+
+<dialog id="settings">
+  <form method="dialog">
+    <h2>URL del servicio de IA</h2>
+    <p class="muted">Dirección donde corre el backend (por defecto <code>http://localhost:8000</code>).</p>
+    <input type="url" id="apiUrl" required>
+    <div class="row end">
+      <button value="cancel" class="btn ghost">Cancelar</button>
+      <button value="ok" class="btn" id="saveApi">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<main class="wrap">
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- PREDICCIÓN -->
+  <section id="tab-predict" class="panel">
+    <div class="grid two">
+      <form id="predictForm" class="card" novalidate>
+        <h2>Datos de la película</h2>
+        <p class="muted">Solo datos conocidos antes de producirla. Lo que no sepas, déjalo vacío.</p>
+        <div class="fields">
+          <label class="span2">Título <span class="opt">(opcional, solo para el historial)</span>
+            <input name="name" maxlength="200" placeholder="Ej. Mi película"></label>
+          <label>Género *
+            <select name="genre" id="genre" required></select></label>
+          <label>Año de estreno *
+            <input name="year" type="number" min="1900" max="2100" required></label>
+          <label>Director
+            <input name="director" maxlength="120" placeholder="Ej. Christopher Nolan"></label>
+          <label>Guionista
+            <input name="writer" maxlength="120"></label>
+          <label>Estrella principal
+            <input name="star" maxlength="120"></label>
+          <label>Productora
+            <input name="company" maxlength="120" placeholder="Ej. Warner Bros."></label>
+          <label>Clasificación
+            <select name="rating" id="rating"></select></label>
+          <label>País
+            <select name="country" id="country"></select></label>
+          <label>Mes de estreno
+            <select name="release_month" id="month"></select></label>
+          <label>Duración (min)
+            <input name="runtime" type="number" min="30" max="400" step="1"></label>
+          <label class="span2">Presupuesto (USD)
+            <input name="budget" type="number" min="1" step="1" placeholder="Ej. 100000000"></label>
+        </div>
+        <div class="row">
+          <button class="btn" type="submit" id="predictBtn">Predecir score</button>
+          <button class="btn ghost" type="button" id="exampleBtn">Rellenar ejemplo</button>
+        </div>
+        <p class="error" id="predictError" role="alert" hidden></p>
+      </form>
+
+      <aside class="card result" id="resultCard" aria-live="polite">
+        <h2>Resultado</h2>
+        <div class="empty" id="resultEmpty">Completa el formulario y pulsa «Predecir score».</div>
+        <div id="resultBody" hidden>
+          <div class="score"><span id="scoreValue">–</span><small>/ 10</small></div>
+          <div class="meter"><div id="meterFill"></div></div>
+          <dl class="facts">
+            <div><dt>Modelo</dt><dd id="resModel"></dd></div>
+            <div><dt>Director en el entrenamiento</dt><dd id="resDirector"></dd></div>
+            <div><dt>Presupuesto</dt><dd id="resBudget"></dd></div>
+          </dl>
+          <ul class="warnings" id="resWarnings"></ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- HISTORIAL -->
+  <section id="tab-history" class="panel" hidden>
+    <div class="card">
+      <div class="row between">
+        <h2>Historial de predicciones</h2>
+        <button class="btn ghost" id="refreshHistory" type="button">Actualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table id="historyTable">
+          <thead><tr><th>Fecha</th><th>Título</th><th>Director</th><th>Género</th><th>Año</th><th>Presup.</th><th class="num">Score</th><th>Modelo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted" id="historyEmpty" hidden>Aún no hay predicciones.</p>
+      <div class="row between pager">
+        <span class="muted" id="historyInfo"></span>
+        <div class="row"><button class="btn ghost" id="prevPage" type="button">Anterior</button>
+          <button class="btn ghost" id="nextPage" type="button">Siguiente</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MÉTRICAS -->
+  <section id="tab-metrics" class="panel" hidden>
+    <div class="card">
+      <div class="row between">
+        <h2>Rendimiento del modelo activo <span class="pill" id="activeVersion"></span></h2>
+        <button class="btn ghost" id="refreshMetrics" type="button">Actualizar</button>
+      </div>
+      <p class="muted" id="metricsContext"></p>
+      <div class="kpis" id="kpis"></div>
+      <div class="note" id="metricsNote"></div>
+    </div>
+    <div class="card">
+      <h2>Versiones del modelo</h2>
+      <div class="table-wrap">
+        <table id="versionsTable">
+          <thead><tr><th>Versión</th><th>Estado</th><th>Entrenado con</th><th>Evaluado en</th><th class="num">MAE</th><th class="num">RMSE</th><th class="num">R²</th><th class="num">Baseline MAE</th><th class="num">MAE anterior*</th><th class="num">Mejora</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted small">MAE y RMSE se miden en puntos de score (menor es mejor). La mejora compara el MAE con predecir siempre la media. *MAE de la versión anterior sobre el mismo conjunto de evaluación. v1 se evalúa en un test ciego (2017–2020); los reentrenamientos, en las películas más recientes disponibles.</p>
+    </div>
+  </section>
+
+  <!-- DATOS Y REENTRENAMIENTO -->
+  <section id="tab-train" class="panel" hidden>
+    <div class="grid two">
+      <div class="card">
+        <h2>1 · Enviar archivo de entrenamiento</h2>
+        <p class="muted">CSV con películas y su score real. Obligatorias: <code>year</code>, <code>score</code>, <code>genre</code>. Opcionales: name, director, writer, star, company, rating, country, budget, runtime, released. <code>votes</code> y <code>gross</code> se ignoran.</p>
+        <form id="uploadForm">
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept=".csv,text/csv">
+            <span id="fileLabel">Elegir archivo CSV…</span>
+          </label>
+          <div class="row"><button class="btn" type="submit" id="uploadBtn" disabled>Subir archivo</button></div>
+        </form>
+        <p class="error" id="uploadError" role="alert" hidden></p>
+        <div class="report" id="uploadReport" hidden></div>
+      </div>
+      <div class="card">
+        <h2>2 · Reentrenar el modelo</h2>
+        <div class="datainfo" id="datasetInfo"></div>
+        <p class="muted">Entrena un candidato con todos los datos, lo compara con el modelo activo sobre las películas más recientes y solo lo activa si lo mejora.</p>
+        <div class="row"><button class="btn" id="retrainBtn" type="button">Reentrenar modelo</button></div>
+        <p class="error" id="retrainError" role="alert" hidden></p>
+        <div class="run" id="runBox" hidden></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Reentrenamientos anteriores</h2>
+      <div class="table-wrap">
+        <table id="runsTable">
+          <thead><tr><th>#</th><th>Inicio</th><th>Estado</th><th>Filas</th><th>Versión</th><th>Promovido</th><th>Detalle</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="muted" id="runsEmpty" hidden>Aún no se ha reentrenado.</p>
+    </div>
+  </section>
+</main>
+<footer class="wrap foot">Movie Score · proyecto CRISP-ML(Q) · el modelo usa solo datos de pre-producción</footer>
+<script src="app.js"></script>
+</body>
+</html>
