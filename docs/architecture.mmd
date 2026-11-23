@@ -1,0 +1,18 @@
+flowchart TB
+    CSV["Archivo CSV de entrenamiento"]
+    WEB["Cliente web (frontend/)<br/>HTML + JavaScript"]
+    subgraph SVC["Servicio de IA (backend/ · FastAPI)"]
+        direction TB
+        API["API REST + Swagger<br/>/predict · /predictions · /metrics<br/>/training-file · /retrain"]
+        ML["ml_core.py + modelo activo (.joblib)"]
+        TR["Reentrenamiento<br/>(tarea en segundo plano)"]
+    end
+    DB[("Base de datos SQLite<br/>movies · model_versions<br/>predictions · training_runs")]
+    NB["Jupyter: modelo_peliculas.ipynb<br/>EDA · imputación · modelos · tuning · test"]
+    CSV -->|"se envía desde la web"| WEB
+    WEB <-->|"API REST (JSON) · CORS"| API
+    API --> ML
+    API --> TR
+    API <--> DB
+    TR <--> DB
+    NB -.->|"genera model_v1.joblib"| ML

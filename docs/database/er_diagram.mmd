@@ -1,0 +1,65 @@
+erDiagram
+    movies {
+        INTEGER id PK
+        TEXT name
+        INTEGER year
+        TEXT release_month
+        TEXT director
+        TEXT writer
+        TEXT star
+        TEXT company
+        TEXT genre
+        TEXT rating
+        TEXT country
+        REAL budget
+        REAL runtime
+        REAL score
+        TEXT source "seed | upload"
+        TEXT source_file
+        TEXT added_at
+    }
+    model_versions {
+        INTEGER id PK
+        TEXT version UK "v1, v2, ..."
+        TEXT algorithm
+        TEXT hyperparameters "JSON"
+        INTEGER train_year_min
+        INTEGER train_year_max
+        INTEGER eval_year_min
+        INTEGER eval_year_max
+        INTEGER n_train
+        INTEGER n_eval
+        REAL cv_mae
+        REAL eval_mae
+        REAL eval_rmse
+        REAL eval_r2
+        REAL baseline_mae
+        REAL improvement
+        INTEGER accepted
+        INTEGER is_active "solo uno activo"
+        TEXT parent_version
+        REAL parent_eval_mae
+        TEXT artifact_path
+        TEXT trained_at
+    }
+    predictions {
+        INTEGER id PK
+        INTEGER model_version_id FK
+        TEXT input_json "datos enviados"
+        REAL predicted_score "resultado"
+        INTEGER known_director
+        INTEGER budget_imputed
+        TEXT created_at
+    }
+    training_runs {
+        INTEGER id PK
+        TEXT status "pending|running|succeeded|failed"
+        INTEGER total_rows
+        INTEGER resulting_model_version_id FK
+        INTEGER promoted
+        TEXT message
+        TEXT started_at
+        TEXT finished_at
+    }
+    model_versions ||--o{ predictions : "responde"
+    model_versions |o--o{ training_runs : "produce"
