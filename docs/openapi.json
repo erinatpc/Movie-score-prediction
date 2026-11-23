@@ -1,0 +1,1324 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Movie Score API",
+    "version": "1.0.0",
+    "description": "Servicio de IA que **predice el score de una película usando solo datos de pre-producción**, guarda el historial de predicciones, expone las métricas del modelo y permite **reentrenarlo** con datos nuevos.\n\nFlujo: `POST /training-file` (sube películas nuevas con su score real) → `POST /retrain` → `GET /retrain/{id}` (estado) → `GET /metrics` (comparar versiones)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Desarrollo local"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Predicción",
+      "description": "Enviar datos al modelo y obtener el resultado"
+    },
+    {
+      "name": "Historial",
+      "description": "Predicciones previas: datos enviados y resultado"
+    },
+    {
+      "name": "Métricas",
+      "description": "Rendimiento del modelo y de sus versiones"
+    },
+    {
+      "name": "Reentrenamiento",
+      "description": "Subir datos y reentrenar el modelo"
+    },
+    {
+      "name": "Sistema",
+      "description": "Estado del servicio y datos auxiliares"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Estado del servicio",
+        "operationId": "health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/options": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Valores frecuentes para los formularios (géneros, clasificaciones, países, meses)",
+        "operationId": "options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Options"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dataset": {
+      "get": {
+        "tags": [
+          "Reentrenamiento"
+        ],
+        "summary": "Resumen de los datos de entrenamiento almacenados",
+        "operationId": "dataset_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict": {
+      "post": {
+        "tags": [
+          "Predicción"
+        ],
+        "summary": "Predecir el score de una película",
+        "description": "Recibe los datos **conocidos antes de producir** la película y devuelve el score estimado (0-10).\nLa predicción queda guardada en el historial.",
+        "operationId": "predict_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No hay modelo activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predictions": {
+      "get": {
+        "tags": [
+          "Historial"
+        ],
+        "summary": "Historial de predicciones (más recientes primero)",
+        "operationId": "predictions_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 500
+            },
+            "description": "Máximo de elementos por página (1-500)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "description": "Elementos a saltar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models": {
+      "get": {
+        "tags": [
+          "Métricas"
+        ],
+        "summary": "Versiones del modelo con sus métricas",
+        "operationId": "models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelVersionOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Métricas"
+        ],
+        "summary": "Métricas de rendimiento del modelo activo (o de una versión) y su historial",
+        "operationId": "metrics_get",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Versión del modelo (ej. v1). Por defecto, la activa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "La versión no existe o no hay modelo activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/training-file": {
+      "post": {
+        "tags": [
+          "Reentrenamiento"
+        ],
+        "summary": "Enviar el archivo CSV de entrenamiento",
+        "description": "Columnas obligatorias: `year`, `score`, `genre`. Opcionales: name, director, writer, star, company, rating,\ncountry, budget, runtime, released (o release_month). `votes` y `gross` se ignoran (se conocen tras el estreno).\nLas películas ya existentes (mismo título y año) se omiten.",
+        "operationId": "training_file_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "El archivo supera el tamaño máximo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CSV inválido (columnas obligatorias ausentes o sin filas válidas)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV con películas y su score real"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/retrain": {
+      "post": {
+        "tags": [
+          "Reentrenamiento"
+        ],
+        "summary": "Solicitar el reentrenamiento del modelo",
+        "description": "Lanza el reentrenamiento en segundo plano con todos los datos almacenados. El candidato se compara con el\nmodelo activo sobre las películas más recientes y solo se promueve si lo mejora. Consulte el estado en\n`GET /retrain/{id}`.",
+        "operationId": "retrain_post",
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRunOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay un reentrenamiento en curso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No hay modelo activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Reentrenamiento"
+        ],
+        "summary": "Últimos reentrenamientos",
+        "operationId": "retrain_list_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingRunOut"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/retrain/{run_id}": {
+      "get": {
+        "tags": [
+          "Reentrenamiento"
+        ],
+        "summary": "Estado de un reentrenamiento",
+        "operationId": "retrain_status_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Identificador del reentrenamiento"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRunOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe el reentrenamiento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DatasetSummary": {
+        "properties": {
+          "total_rows": {
+            "title": "Total Rows",
+            "type": "integer"
+          },
+          "year_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year Min"
+          },
+          "year_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year Max"
+          },
+          "by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Source",
+            "type": "object"
+          }
+        },
+        "required": [
+          "total_rows",
+          "by_source"
+        ],
+        "title": "DatasetSummary",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "type": "object",
+        "title": "HTTPValidationError",
+        "properties": {
+          "detail": {
+            "type": "array",
+            "title": "Detail",
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "active_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Active Model"
+          },
+          "movies_in_database": {
+            "title": "Movies In Database",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "movies_in_database"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "Metrics": {
+        "properties": {
+          "mae": {
+            "title": "Mae",
+            "type": "number"
+          },
+          "rmse": {
+            "title": "Rmse",
+            "type": "number"
+          },
+          "r2": {
+            "title": "R2",
+            "type": "number"
+          }
+        },
+        "required": [
+          "mae",
+          "rmse",
+          "r2"
+        ],
+        "title": "Metrics",
+        "type": "object"
+      },
+      "MetricsResponse": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/ModelVersionOut"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ModelVersionOut"
+            },
+            "title": "History",
+            "type": "array"
+          }
+        },
+        "required": [
+          "active",
+          "history"
+        ],
+        "title": "MetricsResponse",
+        "type": "object"
+      },
+      "ModelVersionOut": {
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "algorithm": {
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "trained_at": {
+            "title": "Trained At",
+            "type": "string"
+          },
+          "train_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Train Years",
+            "type": "array"
+          },
+          "eval_years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Eval Years",
+            "type": "array"
+          },
+          "n_train": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "N Train"
+          },
+          "n_eval": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "N Eval"
+          },
+          "cv": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Validación cruzada temporal (solo el modelo inicial)"
+          },
+          "evaluation": {
+            "$ref": "#/components/schemas/Metrics",
+            "description": "Test ciego (v1) o holdout reciente (reentrenamientos)"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/Metrics",
+            "description": "Predecir siempre la media: referencia que hay que superar"
+          },
+          "improvement_vs_baseline": {
+            "description": "Reducción relativa del MAE frente al baseline (0-1)",
+            "title": "Improvement Vs Baseline",
+            "type": "number"
+          },
+          "parent_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parent Version"
+          },
+          "parent_evaluation_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MAE de la versión anterior (parent_version) sobre el mismo conjunto de evaluación",
+            "title": "Parent Evaluation Mae"
+          }
+        },
+        "required": [
+          "version",
+          "algorithm",
+          "is_active",
+          "accepted",
+          "trained_at",
+          "train_years",
+          "eval_years",
+          "evaluation",
+          "baseline",
+          "improvement_vs_baseline"
+        ],
+        "title": "ModelVersionOut",
+        "type": "object"
+      },
+      "Options": {
+        "properties": {
+          "genres": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Genres",
+            "type": "array"
+          },
+          "ratings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ratings",
+            "type": "array"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "year_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year Min"
+          },
+          "year_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year Max"
+          }
+        },
+        "required": [
+          "genres",
+          "ratings",
+          "countries",
+          "months"
+        ],
+        "title": "Options",
+        "type": "object"
+      },
+      "PredictRequest": {
+        "description": "Datos conocidos ANTES de producir la película. Los campos extra (votes, gross…) se ignoran.",
+        "example": {
+          "budget": 100000000,
+          "company": "Warner Bros.",
+          "country": "United States",
+          "director": "Christopher Nolan",
+          "genre": "Drama",
+          "name": "Mi película",
+          "rating": "PG-13",
+          "release_month": "July",
+          "runtime": 150,
+          "star": "Leonardo DiCaprio",
+          "writer": "Christopher Nolan",
+          "year": 2024
+        },
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Título (solo se guarda en el historial; no lo usa el modelo)",
+            "title": "Name"
+          },
+          "director": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Director"
+          },
+          "writer": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Writer"
+          },
+          "star": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Star"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Company"
+          },
+          "genre": {
+            "examples": [
+              "Drama"
+            ],
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Genre",
+            "type": "string"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "examples": [
+              "PG-13"
+            ],
+            "title": "Rating"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "examples": [
+              "United States"
+            ],
+            "title": "Country"
+          },
+          "year": {
+            "description": "Año previsto de estreno",
+            "maximum": 2100,
+            "minimum": 1900,
+            "title": "Year",
+            "type": "integer"
+          },
+          "release_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Mes de estreno (1-12, en inglés o español)",
+            "title": "Release Month"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 5000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Presupuesto en USD. Si falta se imputa.",
+            "title": "Budget"
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "maximum": 400,
+                "minimum": 30,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Duración en minutos",
+            "title": "Runtime"
+          }
+        },
+        "required": [
+          "genre",
+          "year"
+        ],
+        "title": "PredictRequest",
+        "type": "object"
+      },
+      "PredictResponse": {
+        "properties": {
+          "prediction_id": {
+            "title": "Prediction Id",
+            "type": "integer"
+          },
+          "predicted_score": {
+            "description": "Score estimado (escala 0-10)",
+            "title": "Predicted Score",
+            "type": "number"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "known_director": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "¿El director tenía películas previas en el entrenamiento?",
+            "title": "Known Director"
+          },
+          "director_previous_films": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Director Previous Films"
+          },
+          "budget_imputed": {
+            "title": "Budget Imputed",
+            "type": "boolean"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "prediction_id",
+          "predicted_score",
+          "model_version",
+          "budget_imputed"
+        ],
+        "title": "PredictResponse",
+        "type": "object"
+      },
+      "PredictionItem": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "predicted_score": {
+            "title": "Predicted Score",
+            "type": "number"
+          },
+          "known_director": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Known Director"
+          },
+          "budget_imputed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Imputed"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "model_version",
+          "input",
+          "predicted_score"
+        ],
+        "title": "PredictionItem",
+        "type": "object"
+      },
+      "PredictionsPage": {
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PredictionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "items"
+        ],
+        "title": "PredictionsPage",
+        "type": "object"
+      },
+      "TrainingRunOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "description": "pending | running | succeeded | failed",
+            "title": "Status",
+            "type": "string"
+          },
+          "total_rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Rows"
+          },
+          "promoted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Promoted"
+          },
+          "resulting_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resulting Version"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Finished At"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "started_at"
+        ],
+        "title": "TrainingRunOut",
+        "type": "object"
+      },
+      "UploadResponse": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "rows_received": {
+            "title": "Rows Received",
+            "type": "integer"
+          },
+          "rows_inserted": {
+            "title": "Rows Inserted",
+            "type": "integer"
+          },
+          "rows_duplicated": {
+            "title": "Rows Duplicated",
+            "type": "integer"
+          },
+          "rows_rejected": {
+            "title": "Rows Rejected",
+            "type": "integer"
+          },
+          "rejection_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Rejection Reasons",
+            "type": "object"
+          },
+          "ignored_columns": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ignored Columns",
+            "type": "array"
+          },
+          "total_rows_in_dataset": {
+            "title": "Total Rows In Dataset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "rows_received",
+          "rows_inserted",
+          "rows_duplicated",
+          "rows_rejected",
+          "total_rows_in_dataset"
+        ],
+        "title": "UploadResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "type": "object",
+        "title": "ValidationError",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "properties": {
+          "loc": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
