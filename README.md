@@ -1,0 +1,1 @@
+﻿# Movie score prediction`n`nPredicción del score de películas con CRISP-ML(Q): modelo de regresión, servicio de IA (API REST), base de datos y cliente web.`n`nEl README completo se incorpora en la rama `docs/final-delivery`.`n

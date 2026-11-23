@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
+backend/data/app.db
+backend/data/app.db-*
+backend/models/registry.json
+backend/models/model_v[2-9]*.joblib
+backend/models/model_v[2-9]*_metadata.json
