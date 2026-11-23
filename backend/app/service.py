@@ -118,11 +118,11 @@ def upload_training_file(filename: str, content: bytes):
 
 def start_retrain():
     """Crea la ejecución en estado 'pending'; el trabajo pesado lo lanza el endpoint en segundo plano."""
-    if db.get_running_run():
-        raise Conflict("Ya hay un reentrenamiento en curso")
     if db.get_active_model() is None:
         raise Unavailable("No hay un modelo activo del que partir")
     run_id = db.create_training_run()
+    if run_id is None:
+        raise Conflict("Ya hay un reentrenamiento en curso")
     return _run_out(db.get_training_run(run_id))
 
 

@@ -91,8 +91,16 @@ async def training_file(file: UploadFile = File(..., description="CSV con pelíc
     """Columnas obligatorias: `year`, `score`, `genre`. Opcionales: name, director, writer, star, company, rating,
     country, budget, runtime, released (o release_month). `votes` y `gross` se ignoran (se conocen tras el estreno).
     Las películas ya existentes (mismo título y año) se omiten."""
-    content = await file.read()
-    return service.upload_training_file(file.filename or "upload.csv", content)
+    content = bytearray()
+    max_bytes = config.MAX_UPLOAD_MB * 1024 * 1024
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise service.TooLarge(f"El archivo supera el máximo de {config.MAX_UPLOAD_MB} MB")
+    return service.upload_training_file(file.filename or "upload.csv", bytes(content))
 
 
 @app.post("/retrain", response_model=schemas.TrainingRunOut, status_code=202, tags=["Reentrenamiento"],

@@ -151,6 +151,11 @@ def list_predictions(limit=50, offset=0):
 # ------------------------------------------------------------------ reentrenamientos
 def create_training_run():
     with connect() as con:
+        con.execute("BEGIN IMMEDIATE")
+        running = con.execute(
+            "SELECT 1 FROM training_runs WHERE status IN ('pending','running') LIMIT 1").fetchone()
+        if running:
+            return None
         cur = con.execute("INSERT INTO training_runs (status) VALUES ('pending')")
         return cur.lastrowid
 
