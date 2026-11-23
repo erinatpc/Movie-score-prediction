@@ -1,0 +1,92 @@
+{
+  "model_version": "v1",
+  "trained_at": "2026-11-23T16:44:35+00:00",
+  "algorithm": "ensamble (promedio RF+ET+HGB)",
+  "hyperparameters": {
+    "random_forest": {
+      "n_estimators": 200,
+      "min_samples_leaf": 3,
+      "max_features": 0.2,
+      "max_depth": 20
+    },
+    "extra_trees": {
+      "n_estimators": 200,
+      "min_samples_leaf": 3,
+      "max_features": 0.5,
+      "max_depth": 20
+    },
+    "hist_gb": {
+      "min_samples_leaf": 20,
+      "max_leaf_nodes": 15,
+      "max_iter": 200,
+      "learning_rate": 0.03,
+      "l2_regularization": 0.0
+    }
+  },
+  "imputation": "genre_year",
+  "seed": 42,
+  "train_years": [
+    1980,
+    2016
+  ],
+  "test_years": [
+    2017,
+    2020
+  ],
+  "n_train": 7043,
+  "n_test": 622,
+  "input_columns": [
+    "director",
+    "writer",
+    "star",
+    "company",
+    "genre",
+    "rating",
+    "country",
+    "release_month",
+    "year",
+    "runtime",
+    "log_budget",
+    "budget_missing"
+  ],
+  "excluded_columns": [
+    "votes",
+    "gross",
+    "released",
+    "name"
+  ],
+  "cv_metrics": {
+    "mae": 0.5753452279125703,
+    "rmse": 0.7527263581608231,
+    "r2": 0.38168118111732946
+  },
+  "test_metrics": {
+    "mae": 0.6184060782194155,
+    "rmse": 0.8492096155815132,
+    "r2": 0.1883810285009564
+  },
+  "baseline_test_metrics": {
+    "mae": 0.7317397310868973,
+    "rmse": 0.9449993472663392,
+    "r2": -0.005044754062227597
+  },
+  "improvement_vs_baseline": 0.15488246442371037,
+  "accepted": false,
+  "versions": {
+    "python": "3.11.5",
+    "sklearn": "1.9.1",
+    "pandas": "3.1.1",
+    "numpy": "2.4.6"
+  },
+  "test_mae_ci95": [
+    0.5726090946182012,
+    0.6619133479161213
+  ],
+  "acceptance_checks": {
+    "MAE ≤ 0.65": true,
+    "Mejora ≥ 10% vs baseline": true,
+    "R² ≥ 0.3": false,
+    "R² ≤ 0.8 (sin sospecha de leakage)": true,
+    "CV estable (std MAE entre folds < 0,06)": true
+  }
+}
