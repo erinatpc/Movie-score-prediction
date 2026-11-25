@@ -3,8 +3,6 @@
 Servicio de IA con API REST (FastAPI + Swagger), base de datos y aplicación web para **estimar el score de una película antes de producirla**.
 Incluye subida de archivos de entrenamiento y **reentrenamiento** del modelo.
 
-![Arquitectura](docs/architecture.png)
-
 ## Estructura
 ```
 notebooks/modelo_peliculas.ipynb   modelo completo: EDA, imputación, pipeline, modelos, tuning, test, guardado
